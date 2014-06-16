@@ -71,25 +71,28 @@ void ClSIFT::onNewImage()
 		cv::Mat gray = in_img.read();
 		//cv::Mat gray;
 		//cvtColor(input, gray, COLOR_BGR2GRAY);
-
-		cout << "--- START DoSift --- mat count of rows " <<  gray.rows << endl;
 		IplImage* img = new IplImage(gray);
 		
-		cout << "--- START DoSift --- ipl count of rows " <<  img->height << endl;
+		(siftOpenCL->keypoints).clear();
 
 		int n1 = siftOpenCL->DoSift(img);
-		features = siftOpenCL->listOfPoints;
 		
-		cout << "!!! Detect " << n1 << " features" << endl;
+		cout << "!!! Detect " << (siftOpenCL->keypoints).size() << " features" << endl;
+
+		
+
 
 		//-- Step 1: Detect the keypoints.
 	    	cv::SiftFeatureDetector detector;
 	    	std::vector<cv::KeyPoint> keypoints;
-	    	//detector.detect(gray, keypoints);
+	    	keypoints = siftOpenCL->keypoints;
+		
 
 		//-- Step 2: Calculate descriptors (feature vectors).
 		//cv::SiftDescriptorExtractor extractor;
-		Mat descriptors;
+
+		Mat descriptors = siftOpenCL->descriptors;
+
 		//extractor.compute( gray, keypoints, descriptors);
 
 		// Write results to outputs.
@@ -137,8 +140,6 @@ GPUBase::GPUBase(char* source, char* KernelName)
 	
 	GPUProgram = clCreateProgramWithSource( GPU::getInstance().GPUContext , 1, (const char **)&sourceCL, &szKernelLengthSum, &GPUError);
 	CheckError(GPUError);
-
-	printf("\n ----------- AFTER clCreateProgramWithSource --------------- \n");
 
 
 	// Build the program with 'mad' Optimization option
@@ -573,26 +574,8 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 	BuildGaussPyramid(init_img);
 	storage = cvCreateMemStorage( 0 );
 	
-	clock_t start, finish;
-	double duration = 0;
-	start = clock();
 		features = DetectAndGenerateDesc();
-	finish = clock();
-	duration = (double)(finish - start) / CLOCKS_PER_SEC;
-	cout << endl;
-	cout << "ScaleSpaceExtrema " << SIFTCPU << ": " << duration << endl;
-	cout << endl;
 	
-	cvSeqSort( features, (CvCmpFunc)FeatureCmp, NULL );
-	total = features->total;
-	listOfPoints = (feature*)calloc(total, sizeof(feature));
-	listOfPoints = (feature*)cvCvtSeqToArray( features, listOfPoints, CV_WHOLE_SEQ );
-	for(int i = 0; i < total; i++ )
-	{
-		free( listOfPoints[i].feature_data );
-		listOfPoints[i].feature_data = NULL;
-	}
-
 	cvReleaseMemStorage( &storage );
 	cvReleaseImage( &init_img );
 
@@ -610,7 +593,6 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 	int intvlsSum = intvls + 3;
 	float sig_total, sig_prev;
 
-	cout << "Start BuildGaussPyramid height of img " << base->height << endl;
 
 	imgArray = (IplImage**)calloc(octvs, sizeof(IplImage*));
 
@@ -749,42 +731,34 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 			OffsetNext += sizeOfImages[o];
 				
 			if( i > 0 && i <= intvls )
-			{
+			    {
 				num = 0;
 				detectExtremaGPU->Process(subtractGPU->cmBufPyramid, gaussFilterGPU->cmBufPyramid, imageWidthInPyramid[o], imageHeightInPyramid[o], OffsetPrev, OffsetAct, OffsetNext, &num, prelim_contrastThreshold, i, o, keysArray);
 				total = features->total;
 				number = num;
 				struct detection_data* ddata;
-
+		  
+				cv::Mat descriptors(number,128,CV_32F,0.0);
+				//descriptors = 
+		  
 				for(int ik = 0; ik < number ; ik++)
 				{ 
-					cv::KeyPoint* key = new cv::KeyPoint(keysArray[ik].scx, keysArray[ik].scy, 1);
-					key->octave = keysArray[ik].octv;
-					key->angle = keysArray[ik].ori;
-					
-
-
-					listOfPoints = NewDesc();
-					ddata = FeatDetectionData( listOfPoints );
-					listOfPoints->img_pt.x = listOfPoints->x = keysArray[ik].scx;
-					listOfPoints->img_pt.y = listOfPoints->y = keysArray[ik].scy;
-					ddata->r = keysArray[ik].y;
-					ddata->c = keysArray[ik].x;
-					ddata->subintvl = keysArray[ik].subintvl;
-					ddata->octv = keysArray[ik].octv;
-					ddata->intvl = keysArray[ik].intvl;
-					listOfPoints->scl = keysArray[ik].scl;
-					ddata->scl_octv = keysArray[ik].scl_octv;
-					listOfPoints->ori = (double)keysArray[ik].ori;
-					listOfPoints->d = 128;
-					for(int i = 0; i < 128 ; i++ )
-					{
-						listOfPoints->descr[i] = keysArray[ik].desc[i];
-					}
-					cvSeqPush( features, listOfPoints );
-					free( listOfPoints );
+				    cv::KeyPoint* key = new cv::KeyPoint(keysArray[ik].scx, keysArray[ik].scy, 1);
+				    key->octave = keysArray[ik].octv;
+				    key->angle = keysArray[ik].ori;
+				    keypoints.push_back(*key);
+		  
+		  
+				    for(int i = 0; i < 128 ; i++ )
+				    {
+				        descriptors.at<float>(ik,i) = keysArray[ik].desc[i];
+				    }
+		  
+		  
+		  
+		  
 				}
-			}
+			    } 
 			OffsetPrev = OffsetAct;
 			OffsetAct += sizeOfImages[o];
 		}

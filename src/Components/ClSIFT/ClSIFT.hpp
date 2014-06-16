@@ -457,8 +457,8 @@ public:
 
 	feature* listOfPoints;
 
-
-	vector<cv::KeyPoint> keypoints;
+    cv::Mat descriptors;
+    vector<cv::KeyPoint> keypoints; 
 
 	SiftGPU(int _intvls, float _contrastThreshold, int _curvaturesThreshold);
 
