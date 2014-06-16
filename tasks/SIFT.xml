@@ -1,0 +1,64 @@
+<Task>
+	<!-- reference task information -->
+	<Reference>
+		<Author>
+			<name>Tomasz Kornuta</name>
+			<link></link>
+		</Author>
+		
+		<Description>
+			<brief>ecovi:t2/SIFT</brief>
+			<full>Task presnting the results of operation of the Scale Invariant Feature Transform (SIFT) </full>	
+		</Description>
+	</Reference>
+	
+	<!-- task definition -->
+	<Subtasks>
+		<Subtask name="Main">
+			<Executor name="Processing"  period="1">
+
+				<Component name="Sequence" type="DCL_ClBasic:Sequence" priority="1" bump="1">
+					<param name="sequence.directory">%[TASK_LOCATION]%/../data/</param>
+					<param name="sequence.pattern">.*\.png</param>
+					<param name="mode.loop">0</param>
+				</Component>
+				
+				<Component name="ColorConverter" type="DCL_ClBasic:CvColorConv" priority="2" bump="0">
+					<param name="type">BGR2GRAY</param>
+				</Component>
+
+				<Component name="SIFT" type="DCL_ClBasic:CvSIFT" priority="4" bump="0">
+				</Component>
+
+
+			</Executor>
+
+			<Executor name="Visualization" period="0.2">
+				<Component name="Window" type="DCL_ClBasic:CvWindow" priority="1" bump="0">
+					<param name="count">1</param>
+					<param name="title">SIFT</param>
+				</Component>
+			</Executor>
+		</Subtask>	
+	
+	</Subtasks>
+	
+	<!-- pipes connecting datastreams -->
+	<DataStreams>
+		<Source name="Sequence.out_img">
+			<sink>ColorConverter.in_img</sink>		
+			<sink>Window.in_img0</sink>		
+		</Source>
+		<Source name="ColorConverter.out_img">
+			<sink>SIFT.in_img</sink>		
+		</Source>
+				
+		<Source name="SIFT.out_features">
+			<sink>Window.in_draw0</sink>		
+		</Source>
+	</DataStreams>
+</Task>
+
+
+
+
