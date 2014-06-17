@@ -80,25 +80,10 @@ void ClSIFT::onNewImage()
 		cout << "!!! Detect " << (siftOpenCL->keypoints).size() << " features" << endl;
 
 		
-
-
-		//-- Step 1: Detect the keypoints.
-	    	cv::SiftFeatureDetector detector;
-	    	std::vector<cv::KeyPoint> keypoints;
-	    	keypoints = siftOpenCL->keypoints;
-		
-
-		//-- Step 2: Calculate descriptors (feature vectors).
-		//cv::SiftDescriptorExtractor extractor;
-
-		Mat descriptors = siftOpenCL->descriptors;
-
-		//extractor.compute( gray, keypoints, descriptors);
-
 		// Write results to outputs.
-	    	Types::Features features(keypoints);
+	    	Types::Features features(siftOpenCL->keypoints);
 		out_features.write(features);
-		out_descriptors.write(descriptors);
+		out_descriptors.write(siftOpenCL->descriptors);
 	} catch (...) {
 		LOG(LERROR) << "ClSIFT::onNewImage failed\n";
 	}
@@ -395,10 +380,16 @@ PyramidProcess::~PyramidProcess(void)
 
 }
 
+
+bool PyramidProcess::ReleaseBufferForPyramid()
+{
+	bool res = clReleaseMemObject(cmBufPyramid);
+	return res;
+}
+
 bool PyramidProcess::CreateBufferForPyramid( float size )
 {
 	cmBufPyramid = clCreateBuffer(GPU::getInstance().GPUContext, CL_MEM_READ_WRITE, size, NULL, &GPUError);
-	CheckError(GPUError);
 	return true;
 }
 
@@ -562,25 +553,19 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 	printf("\n ----------- DoSift inside --------------- \n");
 	
 	IplImage* init_img;
-	CvSeq* features;
-
-	
+		
 	init_img = CreateInitialImg( img, SIFT_IMG_DBL, SIFT_SIGMA );
 	octvs = log( (float)MIN( init_img->width, init_img->height ) ) / log((float)2) - 2;
 	sizeOfImages = new int[octvs];
 	imageWidthInPyramid = new int[octvs];
 	imageHeightInPyramid = new int[octvs];
-
 	BuildGaussPyramid(init_img);
-	storage = cvCreateMemStorage( 0 );
+	DetectAndGenerateDesc();
 	
-		features = DetectAndGenerateDesc();
-	
-	cvReleaseMemStorage( &storage );
+	gaussFilterGPU->ReleaseBufferForPyramid();
+	subtractGPU->ReleaseBufferForPyramid();
+
 	cvReleaseImage( &init_img );
-
-
-
 	return total;
  }
 
@@ -593,6 +578,7 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 	int intvlsSum = intvls + 3;
 	float sig_total, sig_prev;
 
+	printf("\n ----------- BuildGaussPyramid inside --------------- \n");
 
 	imgArray = (IplImage**)calloc(octvs, sizeof(IplImage*));
 
@@ -693,8 +679,9 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 
 
 
- CvSeq* SiftGPU::DetectAndGenerateDesc()
+int SiftGPU::DetectAndGenerateDesc()
 {
+	printf("\n ----------- DetectAndGenerateDesc inside --------------- \n");
 	float prelim_contrastThreshold = 0.5 * contrastThreshold / intvls;
 	struct detection_data* ddata;
 	int o, i, r, c;
@@ -703,8 +690,6 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 	int numberExtrema = 0;
 	int number = 0;
 
-	CvSeq* features = cvCreateSeq( 0, sizeof(CvSeq), sizeof(feature), storage );
-	total = features->total;
 	int intvlsSum = intvls + 3;
 	int OffsetAct = 0;
 	int OffsetNext = 0;
@@ -734,7 +719,7 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 			    {
 				num = 0;
 				detectExtremaGPU->Process(subtractGPU->cmBufPyramid, gaussFilterGPU->cmBufPyramid, imageWidthInPyramid[o], imageHeightInPyramid[o], OffsetPrev, OffsetAct, OffsetNext, &num, prelim_contrastThreshold, i, o, keysArray);
-				total = features->total;
+				
 				number = num;
 				struct detection_data* ddata;
 		  
@@ -764,7 +749,7 @@ int GaussFilter::GetGaussKernelSize(double sigma, double cut_off)
 		}
 	}
 
-	return features;
+	return 0;
 }
 
 

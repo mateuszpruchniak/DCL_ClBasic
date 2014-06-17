@@ -315,6 +315,8 @@ public:
 
 	bool CreateBufferForPyramid(float size);
 
+	bool ReleaseBufferForPyramid();
+
 	bool ReceiveImageFromPyramid( IplImage* img, int offset);
 
 	bool SendImageToPyramid(IplImage* img, int offset);
@@ -449,16 +451,14 @@ private:
 	
 	bool BuildGaussPyramid(IplImage* base);
 	IplImage* Downsample( IplImage* img );
-	CvSeq* DetectAndGenerateDesc();
+	int DetectAndGenerateDesc();
 	feature* NewDesc( void );
 
 
 public:
 
-	feature* listOfPoints;
-
-    cv::Mat descriptors;
-    vector<cv::KeyPoint> keypoints; 
+    	cv::Mat descriptors;
+    	vector<cv::KeyPoint> keypoints; 
 
 	SiftGPU(int _intvls, float _contrastThreshold, int _curvaturesThreshold);
 
